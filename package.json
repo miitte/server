@@ -13,5 +13,7 @@
     "lasso-marko": "^2.5.0",
     "marko": "^4.21.8"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@marko-tags/context": "^2.1.1"
+  }
 }
