@@ -1,9 +1,9 @@
 require("marko/node-require") // Allow Node.js to require and load `.marko` files
  
-var express = require("express")
-var markoExpress = require("marko/express")
+const express = require("express")
+const markoExpress = require("marko/express")
 
-var isProduction = process.env.NODE_ENV === "production";
+const isProduction = process.env.NODE_ENV === "production";
  
 // Configure lasso to control how JS/CSS/etc. is delivered to the browser
 require("lasso").configure({
@@ -16,15 +16,22 @@ require("lasso").configure({
   fingerprintsEnabled: isProduction // Only add fingerprints to URLs in production
 })
 
-var template = require("./src/pages/index")
+const template = require("./src/pages/index")
  
-var app = express()
+const app = express()
  
 app.use(require("lasso/middleware").serveStatic())
 app.use(markoExpress()) //enable res.marko(template, data)
  
-app.get("/", function(req, res) {
+app.get("/", (req, res) => {
   res.marko(template, {
+    route: "/"
+  })
+})
+
+app.get("*", (req, res) => {
+  res.marko(template, {
+    route: req.params[0],
   })
 })
  
