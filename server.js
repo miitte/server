@@ -1,5 +1,6 @@
 require("marko/node-require") // Allow Node.js to require and load `.marko` files
  
+const path    = require("path")
 const express = require("express")
 const markoExpress = require("marko/express")
 
@@ -23,15 +24,21 @@ const app = express()
 app.use(require("lasso/middleware").serveStatic())
 app.use(markoExpress()) //enable res.marko(template, data)
  
-app.get("/", (req, res) => {
-  res.marko(template, {
-    route: "/"
-  })
-})
+// TODO: Replace this with settings read from a config file.
+const cfg = {
+  rootDirectory: path.resolve(__dirname),
+}
 
 app.get("*", (req, res) => {
+  // Ensure the path does not break out of our rootDirectory.
+  let fullPathname = path.join(cfg.rootDirectory, req.params[0])
+  if (fullPathname.indexOf(cfg.rootDirectory) !== 0) {
+    res.statusCode = 403
+    return res.send('naughty child\n')
+  }
+  // Render our marko.
   res.marko(template, {
-    route: req.params[0],
+    route: path.relative(cfg.rootDirectory, fullPathname),
   })
 })
  
