@@ -1,5 +1,6 @@
 require("marko/node-require") // Allow Node.js to require and load `.marko` files
  
+const fsPromises = require("fs").promises
 const path    = require("path")
 const express = require("express")
 const markoExpress = require("marko/express")
@@ -29,8 +30,30 @@ const cfg = {
   rootDirectory: path.resolve(__dirname),
 }
 
+// TODO: Move to separate file.
+let getFileEntries = async filepath => {
+  let files = await fsPromises.readdir(filepath, {withFileTypes: true})
+  files = files.filter(f => !f.name.startsWith('.'))
+  files = files.map(f => f.name+(f.isDirectory()?'/':''))
+
+  return files
+}
+
 app.get("/api/*", (req, res) => {
-  res.send("TODO")
+  let fullPathname = path.join(cfg.rootDirectory, req.params[0])
+  if (fullPathname.indexOf(cfg.rootDirectory) !== 0) {
+    res.statusCode = 403
+    return res.send('naughty child\n')
+  }
+
+  getFileEntries(fullPathname).then(files => {
+    res.send(JSON.stringify({
+      entries: files,
+    }))
+  }).catch(err => {
+    res.statusCode = 505
+    res.send('err')
+  })
 })
 
 app.get("*", (req, res) => {
@@ -40,9 +63,15 @@ app.get("*", (req, res) => {
     res.statusCode = 403
     return res.send('naughty child\n')
   }
-  // Render our marko.
-  res.marko(template, {
-    route: path.relative(cfg.rootDirectory, fullPathname),
+
+  getFileEntries(fullPathname).then(files => {
+    res.marko(template, {
+      route: path.relative(cfg.rootDirectory, fullPathname),
+      entries: files,
+    })
+  }).catch(err => {
+    res.statusCode = 505
+    res.send('err')
   })
 })
  
