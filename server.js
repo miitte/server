@@ -29,6 +29,10 @@ const cfg = {
   rootDirectory: path.resolve(__dirname),
 }
 
+app.get("/api/*", (req, res) => {
+  res.send("TODO")
+})
+
 app.get("*", (req, res) => {
   // Ensure the path does not break out of our rootDirectory.
   let fullPathname = path.join(cfg.rootDirectory, req.params[0])
