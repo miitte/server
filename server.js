@@ -3,6 +3,7 @@ require("marko/node-require") // Allow Node.js to require and load `.marko` file
 const fsPromises = require("fs").promises
 const path    = require("path")
 const express = require("express")
+const mime    = require("mime")
 const markoExpress = require("marko/express")
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -33,7 +34,20 @@ const cfg = {
 // TODO: Move to separate file.
 let getFileEntries = async filepath => {
   let files = await fsPromises.readdir(filepath, {withFileTypes: true})
-  files = files.filter(f => !f.name.startsWith('.'))
+  // Filter out hidden files.
+  files = files.filter(f => f.name&&!f.name.startsWith('.'))
+  // Filter out non-images.
+  files = files.filter(f => {
+    if (f.isFile()) {
+      let mimetype = mime.getType(path.parse(f.name).ext)
+      if (mimetype && mimetype.startsWith('image/')) {
+        return true
+      }
+      return false
+    }
+    return true
+  })
+  // Append '/' to directories.
   files = files.map(f => f.name+(f.isDirectory()?'/':''))
 
   return files
@@ -51,6 +65,7 @@ app.get("/api/*", (req, res) => {
       entries: files,
     }))
   }).catch(err => {
+    console.log(err)
     res.statusCode = 505
     res.send('err')
   })
