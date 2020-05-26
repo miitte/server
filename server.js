@@ -68,14 +68,17 @@ async function run() {
 
   settings = Object.assign(defaultSettings, settings)
 
-  app.get("/api/*", (req, res) => {
-    let fullPathname = path.join(settings.rootDirectory, req.params[0])
-    if (fullPathname.indexOf(settings.rootDirectory) !== 0) {
+  let ensureMiddleware = (req, res, next) => {
+    req.fullPathname = path.join(settings.rootDirectory, req.params[0])
+    if (req.fullPathname.indexOf(settings.rootDirectory) !== 0) {
       res.statusCode = 403
       return res.send('naughty child\n')
     }
-  
-    getFileEntries(fullPathname).then(files => {
+    next()
+  }
+
+  app.get("/api/*", ensureMiddleware, (req, res) => {
+    getFileEntries(req.fullPathname).then(files => {
       res.send(JSON.stringify({
         entries: files,
       }))
@@ -86,17 +89,10 @@ async function run() {
     })
   })
   
-  app.get("*", (req, res) => {
-    // Ensure the path does not break out of our rootDirectory.
-    let fullPathname = path.join(settings.rootDirectory, req.params[0])
-    if (fullPathname.indexOf(settings.rootDirectory) !== 0) {
-      res.statusCode = 403
-      return res.send('naughty child\n')
-    }
-  
-    getFileEntries(fullPathname).then(files => {
+  app.get("*", ensureMiddleware, (req, res) => {
+    getFileEntries(req.fullPathname).then(files => {
       res.marko(template, {
-        route: path.relative(settings.rootDirectory, fullPathname),
+        route: path.relative(settings.rootDirectory, req.fullPathname),
         entries: files,
       })
     }).catch(err => {
