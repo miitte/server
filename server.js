@@ -5,6 +5,7 @@ const path    = require("path")
 const express = require("express")
 const mime    = require("mime")
 const markoExpress = require("marko/express")
+const YAML    = require('yaml')
 
 const isProduction = process.env.NODE_ENV === "production";
  
@@ -21,16 +22,11 @@ require("lasso").configure({
 
 const template = require("./src/pages/index")
  
+// Set up express app.
 const app = express()
- 
 app.use(require("lasso/middleware").serveStatic())
 app.use(markoExpress()) //enable res.marko(template, data)
  
-// TODO: Replace this with settings read from a config file.
-const cfg = {
-  rootDirectory: path.resolve(__dirname),
-}
-
 // TODO: Move to separate file.
 let getFileEntries = async filepath => {
   let files = await fsPromises.readdir(filepath, {withFileTypes: true})
@@ -53,41 +49,63 @@ let getFileEntries = async filepath => {
   return files
 }
 
-app.get("/api/*", (req, res) => {
-  let fullPathname = path.join(cfg.rootDirectory, req.params[0])
-  if (fullPathname.indexOf(cfg.rootDirectory) !== 0) {
-    res.statusCode = 403
-    return res.send('naughty child\n')
+async function run() {
+
+  let defaultSettings = {
+    rootDirectory: path.resolve(__dirname),
+  }
+  let settingsFile = './settings.yml'
+  let settings = {}
+  try {
+    settings = YAML.parse(await fsPromises.readFile(settingsFile, 'utf8'))
+  } catch(e) {
+    if (e.code === 'ENOENT') {
+      await fsPromises.writeFile(settingsFile, YAML.stringify(defaultSettings))
+    } else {
+      throw e
+    }
   }
 
-  getFileEntries(fullPathname).then(files => {
-    res.send(JSON.stringify({
-      entries: files,
-    }))
-  }).catch(err => {
-    console.log(err)
-    res.statusCode = 505
-    res.send('err')
-  })
-})
+  settings = Object.assign(defaultSettings, settings)
 
-app.get("*", (req, res) => {
-  // Ensure the path does not break out of our rootDirectory.
-  let fullPathname = path.join(cfg.rootDirectory, req.params[0])
-  if (fullPathname.indexOf(cfg.rootDirectory) !== 0) {
-    res.statusCode = 403
-    return res.send('naughty child\n')
-  }
-
-  getFileEntries(fullPathname).then(files => {
-    res.marko(template, {
-      route: path.relative(cfg.rootDirectory, fullPathname),
-      entries: files,
+  app.get("/api/*", (req, res) => {
+    let fullPathname = path.join(settings.rootDirectory, req.params[0])
+    if (fullPathname.indexOf(settings.rootDirectory) !== 0) {
+      res.statusCode = 403
+      return res.send('naughty child\n')
+    }
+  
+    getFileEntries(fullPathname).then(files => {
+      res.send(JSON.stringify({
+        entries: files,
+      }))
+    }).catch(err => {
+      console.log(err)
+      res.statusCode = 505
+      res.send('err')
     })
-  }).catch(err => {
-    res.statusCode = 505
-    res.send('err')
   })
-})
- 
-app.listen(8089)
+  
+  app.get("*", (req, res) => {
+    // Ensure the path does not break out of our rootDirectory.
+    let fullPathname = path.join(settings.rootDirectory, req.params[0])
+    if (fullPathname.indexOf(settings.rootDirectory) !== 0) {
+      res.statusCode = 403
+      return res.send('naughty child\n')
+    }
+  
+    getFileEntries(fullPathname).then(files => {
+      res.marko(template, {
+        route: path.relative(settings.rootDirectory, fullPathname),
+        entries: files,
+      })
+    }).catch(err => {
+      res.statusCode = 505
+      res.send('err')
+    })
+  })
+   
+  app.listen(8089)
+}
+
+run()

@@ -12,7 +12,8 @@
     "lasso": "^3.3.1",
     "lasso-marko": "^2.5.0",
     "marko": "^4.21.8",
-    "mime": "^2.4.5"
+    "mime": "^2.4.5",
+    "yaml": "^1.10.0"
   },
   "devDependencies": {
     "@marko-tags/context": "^2.1.1"
