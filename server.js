@@ -28,7 +28,8 @@ app.use(require("lasso/middleware").serveStatic())
 app.use(markoExpress()) //enable res.marko(template, data)
  
 // TODO: Move to separate file.
-let getFileEntries = async filepath => {
+let getFileEntries = async (filepath, conf={}) => {
+  conf = Object.assign({ directories: true }, conf)
   let files = await fsPromises.readdir(filepath, {withFileTypes: true})
   // Filter out hidden files.
   files = files.filter(f => f.name&&!f.name.startsWith('.'))
@@ -43,6 +44,10 @@ let getFileEntries = async filepath => {
     }
     return true
   })
+  // Filter out directories if needed
+  if (conf.directories === false) {
+    files = files.filter(f => !f.isDirectory())
+  }
   // Append '/' to directories.
   files = files.map(f => f.name+(f.isDirectory()?'/':''))
 
@@ -90,15 +95,43 @@ async function run() {
   })
   
   app.get("*", ensureMiddleware, (req, res) => {
-    getFileEntries(req.fullPathname).then(files => {
-      res.marko(template, {
-        route: path.relative(settings.rootDirectory, req.fullPathname),
-        entries: files,
+    let parsedPath = path.parse(req.fullPathname)
+    let mimetype = mime.getType(parsedPath.ext)
+    // Render image view if we're targetting a file.
+    if (mimetype && mimetype.startsWith('image/')) {
+      // Send image data if it is a raw request.
+      if (req.query.raw !== undefined) {
+        res.sendFile(req.fullPathname)
+      // Otherwise render the image view.
+      } else {
+        getFileEntries(parsedPath.dir, {directories: false} ).then(files => {
+          if (files.includes(parsedPath.base)) {
+            res.marko(template, {
+              route: path.relative(settings.rootDirectory, parsedPath.dir),
+              entry: parsedPath.base,
+              entries: files,
+            })
+          } else {
+            res.statusCode = 404
+            res.send('404')
+          }
+        }).catch(err => {
+          res.statusCode = 505
+          res.send('err')
+        })
+      }
+    // Otherwise render the index.
+    } else {
+      getFileEntries(req.fullPathname).then(files => {
+        res.marko(template, {
+          route: path.relative(settings.rootDirectory, req.fullPathname),
+          entries: files,
+        })
+      }).catch(err => {
+        res.statusCode = 505
+        res.send('err')
       })
-    }).catch(err => {
-      res.statusCode = 505
-      res.send('err')
-    })
+    }
   })
    
   app.listen(8089)
